@@ -178,6 +178,7 @@ mod tests {
     use crate::modules::xgameruntime::method;
 
     #[test]
+    #[cfg(windows)] // drive roots and the file layer are Windows-only
     fn serves_a_drive_over_the_title_folder_and_its_quota() {
         type Size = extern "system" fn(This, *mut usize) -> HRESULT;
         type Get = extern "system" fn(This, usize, *mut u8, *mut usize) -> HRESULT;

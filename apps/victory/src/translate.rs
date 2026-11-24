@@ -7,8 +7,13 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::Result;
+#[cfg(not(windows))]
+use off_windows::{Host, Validator, host};
+use victory_shader::emit;
+#[cfg(windows)]
 use victory_shader::emit::host::{self, Host};
-use victory_shader::emit::{self, validator::Validator};
+#[cfg(windows)]
+use victory_shader::emit::validator::Validator;
 use victory_shader::structure::{self, Atom, LaneExit};
 use victory_shader::{
     Container, FourCC, HwStage, NativeProgram, RootType, ShaderError, ir, native_programs,
@@ -668,4 +673,65 @@ fn tally_structured(program: &ir::Program, s: &structure::Structured, t: &mut Ta
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Off Windows there is no DXIL validator and no host D3D12 device: the
+/// batch still translates and tallies, `--validate` and `--pipelines` say
+/// they need Windows.
+#[cfg(not(windows))]
+mod off_windows {
+    use std::path::{Path, PathBuf};
+
+    use victory_shader::emit::HostShader;
+
+    const NEEDS_WINDOWS: &str = "needs Windows (DXIL validator and D3D12)";
+
+    pub struct Validator;
+
+    impl Validator {
+        pub fn default_path() -> Option<PathBuf> {
+            None
+        }
+
+        pub fn load(_: Option<&Path>) -> Result<Self, String> {
+            Err(NEEDS_WINDOWS.into())
+        }
+
+        pub fn validate(&mut self, _: &mut [u8]) -> Result<(), String> {
+            Err(NEEDS_WINDOWS.into())
+        }
+    }
+
+    pub struct Host;
+
+    impl Host {
+        pub fn new(_: bool) -> Result<Self, String> {
+            Err(NEEDS_WINDOWS.into())
+        }
+
+        pub fn pipeline(&self, _: &HostShader, _: &HostShader) -> Result<(), String> {
+            Err(NEEDS_WINDOWS.into())
+        }
+
+        pub fn compute_pipeline(&self, _: &HostShader) -> Result<(), String> {
+            Err(NEEDS_WINDOWS.into())
+        }
+
+        pub fn mesh_pipeline(&self, _: &HostShader, _: &HostShader) -> Result<(), String> {
+            Err(NEEDS_WINDOWS.into())
+        }
+    }
+
+    pub mod host {
+        use victory_shader::emit::HostShader;
+
+        pub fn stub_vs(_: &HostShader) -> Result<HostShader, String> {
+            Err(super::NEEDS_WINDOWS.into())
+        }
+
+        /// Never reached: [`super::Host::new`] fails first.
+        pub fn stub_ps() -> HostShader {
+            unreachable!("{}", super::NEEDS_WINDOWS)
+        }
+    }
 }
